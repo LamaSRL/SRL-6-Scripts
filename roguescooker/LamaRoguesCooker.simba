@@ -1,0 +1,639 @@
+program LamaRoguesCooker;
+{$DEFINE SMART}
+{$I SRL-6/SRL.simba}
+
+const
+  SCRIPT = 'LamaRoguesCooker v';
+  VERSION = 1.0;
+
+// setup
+
+procedure declarePlayers;
+begin
+  setLength(players, 1);
+
+  with players[0] do
+  begin
+    loginName := 'batkiller456';
+    password := 'rowangodsword6147';
+    bankPin := '';
+
+    integers[0] := 420;   // minutes to run script for
+    integers[1] := 60;    // random up-to minutes to add to runtime
+    integers[2] := 120;   // minutes to break for
+    integers[3] := 45;    // random up-to minutes to add to break
+    //world := 70;
+
+    isActive := true;
+    isMember := true;
+  end;
+
+  currentPlayer := 0;
+end;
+
+const
+  BANK_PRESET = '2'; // bank preset
+
+// end setup
+
+  UPDATE_INTERVAL = 20000;
+
+  DEBUG_SMART = true;
+
+var
+  ScriptTime: TTimeMarker;
+  NextAB, NextReport, NextHigh, NextBreak: integer;
+  StartXP, CurrentXP: integer;
+  Start, CamReset: boolean;
+  DTMx: integer;
+
+procedure loadDTM;
+begin
+  DTMx := DTMFromString('mbQAAAHicY2VgYFjJyMCwFIjXQTGIrQrEWlCsCMV/joUymHNwgrEPDwcYiwD1o2NGLBgMAFuqB+o=');
+end;
+
+function findNormalRandoms: boolean;
+begin
+  result := exitTreasure() or claimTicket();
+end;
+
+function perHour(amt, time: integer): integer;
+begin
+  result := round((amt * 60) / (time / 60000));
+end;
+
+function resetCamera: boolean;
+begin
+  minimap.clickCompass();
+  mainScreen.setAngle(MS_ANGLE_HIGH);
+  CamReset := true;
+  exit(true);
+end;
+
+// used when turning the camera to look for the banker
+function unsetCamera: boolean;
+begin
+  minimap.setAngle(gaussRangeInt(88, 91), false);
+  wait(randomRange(250, 600));
+  CamReset := false;
+  exit(true);
+end;
+
+function xpPopupExists: boolean;
+var
+  searchArea: TBox := intToBox(365, 0, 428, 55);
+begin
+  result := countColor(2302755, searchArea) > 100; // the dark gray inner ring of the xp popup, around the icon, inside the orange ring
+end;
+
+function getXP: boolean;
+const
+  filter: TTesseractFilter = [6, 9, [False, 40, TM_Mean]];
+var
+  area: TBox := intToBox(336, 57, 462, 68);
+  s: string;
+  t: TTimeMarker;
+  arr: TStringArray;
+begin
+  if (xpPopupExists) then
+    begin
+      t.reset(); t.start();
+      mousecircle(400, 25, 10, MOUSE_MOVE);
+
+      repeat
+        wait(50);
+        if (t.getTime() > 2500) then exit(false);
+      until (getPixelShift(area, 1000) > 50);
+
+      s := tesseractGetText(area, filter);
+
+      // get rid of commas, periods, and spaces if they exist
+      s := replace(s, ' ', '', [0, 1]);
+      s := replace(s, ',', '', [0, 1]);
+      s := replace(s, '.', '', [0, 1]);
+      explodeWrap(':', s, arr);
+
+      try
+        begin
+          if (Start) then
+            begin
+              Start := false;
+              StartXP := strToInt(arr[1]);
+            end;
+          CurrentXP := strToInt(arr[1]);
+          result := true;
+        end
+      except // *cough*
+      end;
+    end;
+end;
+
+procedure checkStuff;
+var
+  x, y: integer;
+begin
+  if (findDTM(DTMx, x, y, mainScreen.getBounds())) then
+      mouse(Point(x, y), MOUSE_LEFT); // if accidentally click achievement tracker when going for the compass, close it
+end;
+
+function bankOpen: boolean;
+begin
+  result := bankScreen.isOpen();
+end;
+
+function withdrawPreset: boolean;
+begin
+  sendKeys(BANK_PRESET, gaussRangeInt(30, 60), gaussRangeInt(20, 50));
+  result := waitFunc(@bankOpen, 250, 2000, false);
+end;
+
+function flagPresent: boolean;
+var
+  p: TPoint;
+begin
+  result := minimap.isFlagPresent(p);
+end;
+
+function clickBankingSymbol: boolean;
+var
+  p: TPoint;
+begin
+  minimap.findSymbol(p, MM_SYMBOL_BANK, minimap.getBounds());
+  mouse(p, MOUSE_LEFT);
+  waitTypeFunc(@flagPresent, 500, 3000, false);
+  result := true;
+end;
+
+function findBanker: T2DPointArray;
+var
+  player: TPoint := mainScreen.playerPoint;
+  TPA: TPointArray;
+  ATPA: T2DPointArray;
+  t: TTimeMarker;
+begin
+  t.reset(); t.start();
+  repeat
+    if (t.getTime() > 5000) then exit();
+
+                            // greenish clothing hues
+    findColorsSpiralTolerance(player.X, player.Y, TPA, 2907463, mainScreen.getBounds(), 22, colorSetting(2, 0.24, 0.34));
+    wait(250);
+  until length(TPA) >= 1;
+
+  ATPA := TPA.cluster(10);
+  ATPA.filterBetween(0, 50);
+
+  result := ATPA;
+end;
+
+function clickBankerOnUs: boolean;
+begin
+  mouse(Point(mainScreen.playerPoint.X + randomRange(-4, 4), mainScreen.playerPoint.Y + randomRange(-4, 4)), MOUSE_MOVE);
+  if (isMouseOverText(['ank', 'Bank', 'ank Em'])) then
+    begin
+      fastClick(MOUSE_RIGHT);
+
+      if (chooseOption.optionsExist(['ank', 'Bank', 'ank Em'])) then
+        begin
+          chooseOption.select(['ank', 'Bank', 'ank Em'], gaussRangeInt(50, 200));
+          exit(true);
+        end;
+    end;
+end;
+
+function clickBanker: boolean;
+var
+  i: integer;
+  ATPA: T2DPointArray;
+  t: TTimeMarker;
+  b: boolean;
+begin
+  t.reset(); t.start();
+  while true do
+    begin
+      while (length(ATPA) < 1) do
+        begin
+          if (t.getTime() > 15000) then exit(false);
+
+          checkStuff();
+          ATPA := findBanker();
+
+          // we definitely didn't find a banker!
+          if (length(ATPA) < 1) then
+            begin
+              if (t.getTime() > 7500) then // at this point, we can try assuming we're on top of him
+                if (clickBankerOnUs) then exit(true);
+
+              if (t.getTime() > 5000 and (not b)) then
+                  if (clickBankingSymbol) then
+                    begin
+                      b := true;
+                      t.reset();
+                    end;
+
+              if (CamReset) then
+                  unsetCamera()
+              else resetCamera();
+            end;
+        end;
+
+      ATPA.sortFromMidPoint(mainScreen.playerPoint);
+
+      if (DEBUG_SMART) then
+        begin
+          smartImage.clear();
+          smartImage.debugATPA(ATPA);
+        end;
+
+      // we might've found the banker (we think)!
+      for i := 0 to high(ATPA) do
+        begin
+          // most of the time even teleporting the mouse isn't fast enough to hit the moving target after calculations
+          moveMouse(Point(middleTPA(ATPA[i]).X + randomRange(-4, 4), middleTPA(ATPA[i]).Y + randomRange(-4, 4)));
+
+          if (isMouseOverText(['ank', 'Bank', 'ank Em'])) then
+            begin
+              fastClick(MOUSE_RIGHT);
+              if not (chooseOption.optionsExist(['ank', 'Bank', 'ank Em'])) then
+                begin
+                  chooseOption.select(['ancel', 'Cancel', 'cel'], gaussRangeInt(50, 200));
+                  break;
+                end;
+
+              wait(randomRange(50, 150));
+              chooseOption.select(['ank', 'Bank', 'ank Em'], gaussRangeInt(50, 200));
+              if (DEBUG_SMART) then
+                smartImage.clear();
+
+              exit(true);
+            end;
+        end;
+
+      setLength(ATPA, 0);
+    end;
+end;
+
+function findFire: T2DPointArray;
+var
+  player: TPoint := mainScreen.playerPoint;
+  TPA: TPointArray;
+  ATPA: T2DPointArray;
+  t: TTimeMarker;
+  b: boolean;
+begin
+  t.reset(); t.start();
+  repeat
+    if (t.getTime() > 5000) then exit();
+
+                                          // darkish brown wood
+    findColorsSpiralTolerance(player.X, player.Y, TPA, 273206, mainScreen.getBounds(), 4, colorSetting(2, 0.13, 0.55));
+    wait(250);
+  until length(TPA) >= 1;
+
+  ATPA := TPA.cluster(12);
+  ATPA.filterBetween(0, 15);
+
+  result := ATPA;
+end;
+
+function clickFire: boolean;
+var
+  i: integer;
+  ATPA: T2DPointArray;
+  t: TTimeMarker;
+  b: boolean;
+begin
+  t.reset(); t.start();
+  while true do
+    begin
+      while (length(ATPA) < 1) do
+        begin
+          if (t.getTime() > 6000) then exit(false);
+
+          checkStuff();
+          ATPA := findFire();
+
+          if (length(ATPA) < 1) then
+            begin
+              if (t.getTime() > 2250) and (not b) then
+                if (clickBankingSymbol) then
+                  begin
+                    t.reset();
+                    b := true;
+                  end;
+
+              if (CamReset) then
+                unsetCamera()
+              else resetCamera();
+            end;
+        end;
+
+      // sorts from a point in the upper-middle right, make sure it's the northern fire every time
+      ATPA.sortFromMidPoint(Point(380, 5)); // mostly unnecessary, but humans dont like change
+
+      if (DEBUG_SMART) then
+        begin
+          smartImage.clear();
+          smartImage.debugATPA(ATPA);
+        end;
+
+      for i := 0 to high(ATPA) do
+        begin
+          mouse(Point(middleTPA(ATPA[i]).X + randomRange(-4, 4), middleTPA(ATPA[i]).Y + randomRange(-4, 4)), MOUSE_MOVE);
+          if (isMouseOverText(['ook', '-at', 'at Fire'], 1000)) then
+            begin
+              fastClick(MOUSE_LEFT);
+              if (DEBUG_SMART) then
+                smartImage.clear();
+
+              case random(2) of
+                0: sleepAndMoveMouse(randomRange(350, 650));
+              end;
+              if (productionScreen.isOpen(1000)) then productionScreen.clickStart()
+              else mouseBox(chatbox.getBounds());
+              exit(true);
+            end
+          else
+            begin // we moved to the fire, but something is preventing us from an ez left click!
+              fastClick(MOUSE_RIGHT);
+              if (chooseOption.optionsExist(['ook', '-at', 'at Fire'])) then
+                begin
+                  wait(gaussRangeInt(50, 125));
+                  chooseOption.select(['ook', '-at', 'at Fire']);
+                  if (DEBUG_SMART) then
+                    smartImage.clear();
+
+                  mouseBox(chatbox.getBounds());
+                  exit(true);
+                end;
+            end;
+        end;
+
+        setLength(ATPA, 0);
+    end;
+end;
+
+function isCooking: boolean;
+begin
+  result := progressScreen.isOpen(1200);
+end;
+
+function hop: boolean;
+begin
+  if (options.open()) then
+    if (options.selectOption(['obby', 'to Lo', 'xit to'])) then
+      begin
+        if waitTypeFunc(@lobby.isOpen, 125, 5000) then
+          begin
+            lobbyWorlds.selectRandomWorld(true);
+            players[currentPlayer].login();
+            sleep(randomRange(2500, 5500));
+
+            minimap.clickCompass();
+            mainscreen.setAngle(MS_ANGLE_HIGH);
+            mainScreen.setZoom(true, 30);
+
+            result := true;
+          end;
+      end;
+end;
+
+procedure mouseRandomBox;
+begin
+  case random(5) of
+    0: mouseBox(chatbox.getBounds());
+    1: mouseBox(minimap.getBounds());
+    2: mouseBox(intToBox(346, 50, 553, 280)); // right half of mainScreen
+    3: mouseBox(intToBox(10, 210, 279, 300)); // bottom left quad of mainScreen
+  end;
+end;
+
+procedure antiban;
+begin
+  if (ScriptTime.getTime() > NextAB) then
+    begin
+      case random(800) of
+        0..3:
+          begin
+            hoverSkill(SKILL_COOKING);
+            wait(gaussRangeInt(2000, 6000));
+            tabBackpack.open();
+          end;
+        4:
+          begin
+            hoverRandomSkill();
+            wait(gaussRangeInt(2000, 6000));
+            tabBackpack.open();
+          end;
+        5..10:
+          begin
+            randomCompass(-125, 125, false);
+            wait(gaussRangeInt(1250, 4000));
+            case random(2) of
+              0:
+                begin
+                  randomCompass(-125, 125, false);
+                  wait(gaussRangeInt(1250, 4000));
+                end;
+            end;
+            mouseBox(mainScreen.getBounds());
+            minimap.clickCompass();
+            wait(gaussRangeInt(100, 200));
+            mainScreen.setAngle(MS_ANGLE_HIGH);
+          end;
+        11..300: sleepAndMoveMouse(randomRange(100, 2500));
+        301..400:
+          begin
+            mouseOffClient(random(4));
+            wait(gaussRangeInt(2000, 10000));
+          end;
+      end;
+
+      NextAB := ScriptTime.getTime() + 15000 + gaussRangeInt(3000, 12000);
+    end;
+end;
+
+procedure updateReport;
+var
+  xpGained, xpPerHour: integer;
+begin
+  clearDebug();
+
+  xpGained := CurrentXP - StartXP;
+  xpPerHour := perHour(xpGained, ScriptTime.getTime());
+
+  writeLn('|=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=|');
+  writeLn(padR('|          ' + SCRIPT + toStr(VERSION), 40) + '|');
+  writeLn('|=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=|');
+  writeLn(padR('| Time Running: ' + (msToTime(ScriptTime.getTime(), TIME_ABBREV)), 40) + '|');
+  writeLn(padR('| Next Break  : ' + (msToTime(players[currentPlayer].integers[4] - ScriptTime.getTime(), TIME_ABBREV)), 40) + '|');
+  writeLn(padR('| EXP Gained  : ' + groupDigits(XpGained, ',') + ' (' + groupDigits(xpPerHour, ',') + ' ph)', 40) + '|');
+  writeLn('|_______________________________________|');
+
+  NextReport := ScriptTime.getTime() + UPDATE_INTERVAL + gaussRangeInt(2000, 6000);
+  mouseRandomBox();
+end;
+
+function setupPlayer: boolean;
+begin
+  if not (players[currentPlayer].isActive and players[currentPlayer].login()) then
+    exit()
+  else
+    begin
+      writeLn('Just logged in, waiting a moment ...');
+      result := isLoggedIn();
+      wait(randomRange(1000, 2000));
+    end;
+
+  mouseBox(mainScreen.getBounds());
+  //minimap.clickCompass();
+  //mainScreen.setAngle(MS_ANGLE_HIGH);
+  //mainScreen.setZoom(true, 30);
+  CamReset := true;
+
+  findNormalRandoms();
+end;
+
+procedure setup;
+begin
+  clearDebug();
+  disableSRLDebug := true;
+  smartEnableDrawing := true;
+  smartShowConsole := false;
+  setupSRL();
+
+  declarePlayers();
+  setupPlayer();
+  Start := true;
+  loadDTM();
+
+  // set play time, with a random amount added on
+  players[currentPlayer].integers[4] := (players[currentPlayer].integers[0] + random(players[currentPlayer].integers[1])) * 60000;
+  // set length of the first break
+  players[currentPlayer].integers[5] := (players[currentPlayer].integers[2] + random(players[currentPlayer].integers[3])) * 60000;
+
+  ScriptTime.start();
+end;
+
+procedure handleBreaks;
+var
+  breakTimer: TTimeMarker;
+  ETA: integer;
+begin
+  if (ScriptTime.getTime() >= players[currentPlayer].integers[4]) then
+    begin
+      mouseRandomBox(); // make sure we aren't hovering over xp
+      writeLn('Preparing to take break ...');
+
+      writeLn('Taking break!');
+      ScriptTime.pause();
+      players[currentPlayer].logout();
+      breakTimer.reset(); breakTimer.start();
+
+      repeat
+        ETA := players[currentPlayer].integers[5] - breakTimer.getTime();
+        smartImage.clear();
+        smartImage.drawTextLines(['Taking a break!', 'Time before resuming: ' + msToTime(ETA, TIME_ABBREV)], Point(10,10), statChars, false, clYellow);
+        wait(1000);
+      until breakTimer.getTime() > players[currentPlayer].integers[5];
+
+      // set play time, with a random amount added on
+      players[currentPlayer].integers[4] := ScriptTime.getTime() + (players[currentPlayer].integers[0] + random(players[currentPlayer].integers[1])) * 60000;
+      // set length of the next break
+      players[currentPlayer].integers[5] := (players[currentPlayer].integers[2] + random(players[currentPlayer].integers[3])) * 60000;
+
+      writeLn('Break over!');
+      setupPlayer();  // log player back in and re-situate
+
+      smartImage.clear();
+      ScriptTime.start();
+    end;
+end;
+
+function doBanking: boolean;
+begin
+  if (productionScreen.isOpen) then // failsafe
+    begin
+      if not productionScreen.clickStart(false) then
+        productionScreen.close();
+      exit(false);
+    end;
+  if (clickBanker) then
+    begin
+      mouseBox(chatbox.getBounds());
+      if (_waitBankOrPinScreen(6000)) then
+        begin
+          if (pinScreen.isOpen()) then
+            pinscreen.enter(players[currentPlayer].bankPin);
+          wait(randomRange(350, 600));
+          result := withdrawPreset();
+        end;
+    end;
+end;
+
+function doCooking: boolean;
+begin
+  if (clickFire) then
+      if (productionScreen.isOpen(6000)) then
+        begin
+          wait(randomRange(250, 750));
+          result := productionScreen.clickStart();
+        end;
+end;
+
+procedure mainLoop;
+var
+  outta: boolean;
+begin
+  while true do
+    begin
+      if (chatbox.findText(['otting', 'bot', 'Bot', 'acro', 'auto', 'Auto'])) then // idea creds: Justin
+        begin
+          writeLn('Banned chat detected, hopping ...');
+          saveScreenshot(ToStr(random(100000)) + '_chat.png');
+          if not hop then terminateScript();
+        end;
+
+      checkStuff();
+      handleBreaks();
+
+      if not (isCooking) then
+        begin
+          if (outta) then begin writeLn('outta fish, logging out!'); exit(); end;
+          if (doBanking) then
+            begin
+              if not (tabBackpack.isFull) then
+                begin
+                  writeLn('running out of fish, logging out after this inventory...');
+                  outta := true;
+                end;
+
+              doCooking();
+              if (not CamReset) then
+                resetCamera();
+            end
+          else
+            begin
+              if (bankScreen.isOpen) then
+                bankScreen.close();
+            end;
+        end
+      else antiban();
+
+      if (ScriptTime.getTime() > NextReport) then if (getXP) then updateReport();
+
+      if (ScriptTime.getTime() > NextHigh) then // failsafe, no logical reason, but sometimes it's not right
+        begin
+          NextHigh := ScriptTime.getTime() + 20000 + gaussRangeInt(1000, 5000);
+          mainScreen.setAngle(MS_ANGLE_HIGH);
+        end;
+    end;
+end;
+
+begin
+  setup();
+  findFire();
+  //mainLoop();
+  //players[currentPlayer].logout();
+  freeDTMs([DTMx]);
+end.
