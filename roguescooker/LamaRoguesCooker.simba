@@ -3,7 +3,7 @@ program LamaRoguesCooker;
 {$I SRL-6/SRL.simba}
 
 const
-  SCRIPT = 'LamaRoguesCooker v';
+  SCRIPT = 'LamaRoguesCooker';
   VERSION = 1.0;
 
 // setup
@@ -14,8 +14,8 @@ begin
 
   with players[0] do
   begin
-    loginName := 'batkiller456';
-    password := 'rowangodsword6147';
+    loginName := '';
+    password := '';
     bankPin := '';
 
     integers[0] := 420;   // minutes to run script for
@@ -46,6 +46,25 @@ var
   StartXP, CurrentXP: integer;
   Start, CamReset: boolean;
   DTMx: integer;
+
+procedure getUpdate();
+var
+  newFile: Integer;
+  newVer: Extended;
+begin
+  newVer := strToFloat(getPage('https://raw.githubusercontent.com/SRL-Lama/SRL-6-Scripts/master/roguescooker/version.txt'));
+  printf('Current script Version: %f || Online script Version: %f', [VERSION, newVer]);
+
+  if newVer > VERSION then
+  begin
+    printf('Updating ' + SCRIPT + '.simba from Version %f to %f', [VERSION, newVer]);
+    newFile := rewriteFile(scriptPath + SCRIPT + '.simba', false);
+    writeFileString(newFile, getPage('https://raw.githubusercontent.com/SRL-Lama/SRL-6-Scripts/master/roguescooker/LamaRoguesCooker.simba'));
+    closeFile(newFile);
+    print('Please reopen this file');
+    terminateScript();
+  end;
+end;
 
 procedure loadDTM;
 begin
@@ -631,9 +650,12 @@ begin
 end;
 
 begin
+  writeLn(getPage('https://raw.githubusercontent.com/SRL-Lama/SRL-6-Scripts/master/roguescooker/version.txt'));
+  wait(5000);
+  getUpdate();
+
   setup();
-  findFire();
-  //mainLoop();
-  //players[currentPlayer].logout();
+  mainLoop();
+  players[currentPlayer].logout();
   freeDTMs([DTMx]);
 end.
