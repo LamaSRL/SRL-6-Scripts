@@ -2,6 +2,7 @@ program MouseMovingObject;
 {$DEFINE SMART}
 {$I SRL-6/SRL.simba}
 
+// our record for which we will define out the moving objects we want to find
 type
   TFinderObj = record
     ColorData: TColorData;
@@ -9,6 +10,7 @@ type
     OverText: TStringArray;
   end;
 
+// return the center point of an object given it's colorData
 function findObj(objData: TFinderObj; searchArea: TBox): TPoint;
 var
   ATPA: T2DPointArray;
@@ -25,6 +27,8 @@ begin
     findColorsSpiralTolerance(x, y, TPA, objData.ColorData.color, searchArea, objData.ColorData.tolerance, objData.ColorData.settings);
   until length(TPA) >= 1;
 
+  // around here is where we should implement some better filtering if our colorData isn't literally perfect (it never is)
+
   if length(TPA) >= 1 then
     p := middleTPA(TPA);
 
@@ -32,8 +36,9 @@ begin
 end;
 
 const
-  DIST_TOL = 4;
+  DIST_TOL = 4; // good enough for the standard walking speed of a humanoid NPC
 
+// modified from Camel's modification of Flight and BenLand100's original _humanWindMouse.
 function mMoving(xs, ys, gravity, wind, minwait, maxwait, targetArea: Extended; objData: TFinderObj; searchArea: TBox; distTol: integer = DIST_TOL): boolean;
 var
   veloX, veloY, windX, windY, veloMag, dist, randomDist, D: extended;
@@ -48,6 +53,7 @@ begin
   sqrt3:= sqrt(3);
   sqrt5:= sqrt(5);
 
+  // if we can't see our target, return false
   pointI := findObj(objData, searchArea);
   if PointI.X = -1 then
     exit;
@@ -58,10 +64,13 @@ begin
     if (getSystemTime() > t) then
       break;
 
+    // grab our target's point
     pointI := findObj(objData, searchArea);
     if PointI.X = -1 then
       exit;
 
+    // if we've gone through at least once, check if our new pointI is within a logical range of our last pointI
+    // if not, restart this iteration
     if iterated then
       begin
         if (distance(lastP, pointI) > distTol) then
@@ -129,16 +138,19 @@ begin
     W := round(W*0.9);
     wait(W);
 
+    // last point equals the current point, and we've iterated
     lastP := pointI;
     iterated := true;
   until(hypot(xs - PointI.x, ys - PointI.y) < 3);
 
+  // if we have arrived at our destination (more or less), return true
   if (hypot(xs - PointI.x, ys - PointI.y) < 3) then
     exit(true);
 
   mouseSpeed := MSP;
 end;
 
+// take a TFinderObject as defined, a search area TBox, what button to press on arrival, and a distance tolerance (depending on the speed of our moving target)
 function mMovingObject(objData: TFinderObj; searchArea: TBox; button: integer; distTolerance: integer = DIST_TOL): boolean;
 var
   randSpeed: extended;
@@ -151,7 +163,8 @@ begin
   randSpeed := (random(mouseSpeed) / 2.0 + mouseSpeed) / 10.0;
   getMousePos(x,y);
 
-  if mMoving(x, y, MOUSE_HUMAN, 5, 10.0/randSpeed, 15.0/randSpeed, 10.0*randSpeed, objData, searchArea, ) then
+  // if we'ved arrived at our target, press our button and return true
+  if mMoving(x, y, MOUSE_HUMAN, 5, 10.0/randSpeed, 15.0/randSpeed, 10.0*randSpeed, objData, searchArea, distTolerance) then
     begin
       fastClick(button);
       exit(true);
@@ -160,6 +173,7 @@ begin
   mouseSpeed := ms;
 end;
 
+// testing, finding the banker Emerald Benedict within the Rogues' Den
 var
   banker: TFinderObj;
 begin
