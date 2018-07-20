@@ -36,14 +36,14 @@ begin
 end;
 
 const
-  DIST_TOL = 4; // good enough for the standard walking speed of a humanoid NPC
+  DIST_TOL = 3; // good enough for the standard walking speed of a humanoid NPC
 
 // modified from Camel's modification of Flight and BenLand100's original _humanWindMouse.
 function mMoving(xs, ys, gravity, wind, minwait, maxwait, targetArea: Extended; objData: TFinderObj; searchArea: TBox; distTol: integer = DIST_TOL): boolean;
 var
   veloX, veloY, windX, windY, veloMag, dist, randomDist, D: extended;
   lastX, lastY, MSP, W, TDist: integer;
-  pointI, lastP: TPoint;
+  ptTarget, ptLast: TPoint;
   T: LongWord;
   sqrt2, sqrt3, sqrt5, maxStep, rCnc: extended;
   iterated: boolean;
@@ -54,35 +54,32 @@ begin
   sqrt5:= sqrt(5);
 
   // if we can't see our target, return false
-  pointI := findObj(objData, searchArea);
-  if PointI.X = -1 then
+  ptTarget := findObj(objData, searchArea);
+  if ptTarget.X = -1 then
     exit;
 
-  TDist := distance(round(xs), round(ys), pointI.x, pointI.y);
+  TDist := distance(round(xs), round(ys), ptTarget.X, ptTarget.Y);
   t := getSystemTime() + 10000;
   repeat
     if (getSystemTime() > t) then
       break;
 
-    // grab our target's point
-    pointI := findObj(objData, searchArea);
-    if PointI.X = -1 then
+    // last point equals the last iteration target point
+    ptLast := ptTarget;
+
+    // update our target's point
+    ptTarget := findObj(objData, searchArea);
+    if (ptTarget.X = -1) then
       exit;
 
-    // if we've gone through at least once, check if our new pointI is within a logical range of our last pointI
+    // check if our new pointI is within a logical range of our last pointI
     // if not, set lastP to currentP and restart this iteration
-    if iterated then
-      begin
-        if (distance(lastP, pointI) > distTol) then
-          begin
-            lastP := pointI;
-            continue;
-          end;
-      end;
+    if (distance(ptLast, ptTarget) > distTol) then
+      continue;
 
-    dist:= hypot(xs - pointI.x, ys - pointI.y);
+    dist := hypot(xs - ptTarget.x, ys - ptTarget.y);
 
-    wind:= minE(wind, dist);
+    wind := minE(wind, dist);
     if (dist < 1) then
       dist := 1;
 
@@ -103,31 +100,31 @@ begin
 
     if dist >= targetArea then
     begin
-      windX:= windX / sqrt3 + (random(round(wind) * 2 + 1) - wind) / sqrt5;
-      windY:= windY / sqrt3 + (random(round(wind) * 2 + 1) - wind) / sqrt5;
+      windX := windX / sqrt3 + (random(round(wind) * 2 + 1) - wind) / sqrt5;
+      windY := windY / sqrt3 + (random(round(wind) * 2 + 1) - wind) / sqrt5;
     end else
     begin
-      windX:= windX / sqrt2;
-      windY:= windY / sqrt2;
+      windX := windX / sqrt2;
+      windY := windY / sqrt2;
     end;
 
-    veloX:= veloX + windX;
-    veloY:= veloY + windY;
-    veloX:= veloX + gravity * (PointI.x - xs) / dist;
-    veloY:= veloY + gravity * (PointI.y - ys) / dist;
+    veloX := veloX + windX;
+    veloY := veloY + windY;
+    veloX := veloX + gravity * (ptTarget.x - xs) / dist;
+    veloY := veloY + gravity * (ptTarget.y - ys) / dist;
 
     if (hypot(veloX, veloY) > maxStep) then
     begin
-      randomDist:= maxStep / 2.0 + random(round(maxStep) div 2);
-      veloMag:= sqrt(veloX * veloX + veloY * veloY);
-      veloX:= (veloX / veloMag) * randomDist;
-      veloY:= (veloY / veloMag) * randomDist;
+      randomDist := maxStep / 2.0 + random(round(maxStep) div 2);
+      veloMag := sqrt(veloX * veloX + veloY * veloY);
+      veloX := (veloX / veloMag) * randomDist;
+      veloY := (veloY / veloMag) * randomDist;
     end;
 
-    lastX:= round(xs);
-    lastY:= round(ys);
-    xs:= xs + veloX;
-    ys:= ys + veloY;
+    lastX := round(xs);
+    lastY := round(ys);
+    xs := xs + veloX;
+    ys := ys + veloY;
 
     if (lastX <> round(xs)) or (lastY <> round(ys)) then
       moveMouse(round(xs), round(ys));
@@ -136,15 +133,12 @@ begin
     if (W < 5) then
       W := 5;
     W := round(W*0.9);
-    wait(W);
 
-    // last point equals the current point, and we've iterated
-    lastP := pointI;
-    iterated := true;
-  until(hypot(xs - PointI.x, ys - PointI.y) < 3);
+    wait(W);
+  until(hypot(xs - ptTarget.X, ys - ptTarget.Y) < 3);
 
   // if we have arrived at our destination (more or less), return true
-  if (hypot(xs - PointI.x, ys - PointI.y) < 3) then
+  if (hypot(xs - ptTarget.X, ys - ptTarget.Y) < 3) then
     exit(true);
 
   mouseSpeed := MSP;
