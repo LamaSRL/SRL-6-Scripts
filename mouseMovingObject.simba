@@ -1,0 +1,179 @@
+program MouseMovingObject;
+{$DEFINE SMART}
+{$I SRL-6/SRL.simba}
+
+type
+  TFinderObj = record
+    ColorData: TColorData;
+    Size: integer;
+    OverText: TStringArray;
+  end;
+
+function findObj(objData: TFinderObj; searchArea: TBox): TPoint;
+var
+  ATPA: T2DPointArray;
+  TPA: TPointARray;
+  x, y: integer;
+  t: TTimeMarker;
+  p: TPoint;
+begin
+  t.reset(); t.start();
+  repeat
+    if (t.getTime() > 2500) then
+      exit(Point(-1, -1));
+
+    findColorsSpiralTolerance(x, y, TPA, objData.ColorData.color, searchArea, objData.ColorData.tolerance, objData.ColorData.settings);
+  until length(TPA) >= 1;
+
+  if length(TPA) >= 1 then
+    p := middleTPA(TPA);
+
+  result := p;
+end;
+
+const
+  DIST_TOL = 4;
+
+function mMoving(xs, ys, gravity, wind, minwait, maxwait, targetArea: Extended; objData: TFinderObj; searchArea: TBox; distTol: integer = DIST_TOL): boolean;
+var
+  veloX, veloY, windX, windY, veloMag, dist, randomDist, D: extended;
+  lastX, lastY, MSP, W, TDist: integer;
+  pointI, lastP: TPoint;
+  T: LongWord;
+  sqrt2, sqrt3, sqrt5, maxStep, rCnc: extended;
+  iterated: boolean;
+begin
+  MSP  := mouseSpeed;
+  sqrt2:= sqrt(2);
+  sqrt3:= sqrt(3);
+  sqrt5:= sqrt(5);
+
+  pointI := findObj(objData, searchArea);
+  if PointI.X = -1 then
+    exit;
+
+  TDist := distance(round(xs), round(ys), pointI.x, pointI.y);
+  t := getSystemTime() + 10000;
+  repeat
+    if (getSystemTime() > t) then
+      break;
+
+    pointI := findObj(objData, searchArea);
+    if PointI.X = -1 then
+      exit;
+
+    if iterated then
+      begin
+        if (distance(lastP, pointI) > distTol) then
+          begin
+            lastP := pointI;
+            continue;
+          end;
+      end;
+
+    dist:= hypot(xs - pointI.x, ys - pointI.y);
+
+    wind:= minE(wind, dist);
+    if (dist < 1) then
+      dist := 1;
+
+    D := (round((round(TDist)*0.3))/7);
+    if (D > 25) then
+      D := 25;
+    if (D < 5) then
+      D := 5;
+
+    rCnc := random(6);
+    if (rCnc = 1) then
+      D := randomRange(2,3);
+
+    if (D <= round(dist)) then
+      maxStep := D
+    else
+      maxStep := round(dist);
+
+    if dist >= targetArea then
+    begin
+      windX:= windX / sqrt3 + (random(round(wind) * 2 + 1) - wind) / sqrt5;
+      windY:= windY / sqrt3 + (random(round(wind) * 2 + 1) - wind) / sqrt5;
+    end else
+    begin
+      windX:= windX / sqrt2;
+      windY:= windY / sqrt2;
+    end;
+
+    veloX:= veloX + windX;
+    veloY:= veloY + windY;
+    veloX:= veloX + gravity * (PointI.x - xs) / dist;
+    veloY:= veloY + gravity * (PointI.y - ys) / dist;
+
+    if (hypot(veloX, veloY) > maxStep) then
+    begin
+      randomDist:= maxStep / 2.0 + random(round(maxStep) div 2);
+      veloMag:= sqrt(veloX * veloX + veloY * veloY);
+      veloX:= (veloX / veloMag) * randomDist;
+      veloY:= (veloY / veloMag) * randomDist;
+    end;
+
+    lastX:= round(xs);
+    lastY:= round(ys);
+    xs:= xs + veloX;
+    ys:= ys + veloY;
+
+    if (lastX <> round(xs)) or (lastY <> round(ys)) then
+      moveMouse(round(xs), round(ys));
+
+    W := (random((round(100/MSP)))*6);
+    if (W < 5) then
+      W := 5;
+    W := round(W*0.9);
+    wait(W);
+
+    lastP := pointI;
+    iterated := true;
+  until(hypot(xs - PointI.x, ys - PointI.y) < 3);
+
+  if (hypot(xs - PointI.x, ys - PointI.y) < 3) then
+    exit(true);
+
+  mouseSpeed := MSP;
+end;
+
+function mMovingObject(objData: TFinderObj; searchArea: TBox; button: integer; distTolerance: integer = DIST_TOL): boolean;
+var
+  randSpeed: extended;
+  x, y, ms: integer;
+begin
+  if (button = MOUSE_NONE) then
+    exit;
+
+  ms := mouseSpeed;
+  randSpeed := (random(mouseSpeed) / 2.0 + mouseSpeed) / 10.0;
+  getMousePos(x,y);
+
+  if mMoving(x, y, MOUSE_HUMAN, 5, 10.0/randSpeed, 15.0/randSpeed, 10.0*randSpeed, objData, searchArea, ) then
+    begin
+      fastClick(button);
+      exit(true);
+    end;
+
+  mouseSpeed := ms;
+end;
+
+var
+  banker: TFinderObj;
+begin
+  setupSRL();
+  smartEnableDrawing := true;
+  smartShowConsole := false;
+
+  with banker do
+  begin
+    ColorData := [2907463, 22, [2, [0.24, 0.34]]];
+    OverText := ['ank', 'merald', 'enedict'];
+  end;
+
+  if (mMovingObject(banker, mainScreen.getBounds(), MOUSE_MOVE)) then
+    if (isMouseOverText(banker.OverText, 1000)) then
+      fastClick(MOUSE_RIGHT);
+end.
