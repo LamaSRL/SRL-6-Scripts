@@ -70,7 +70,7 @@ begin
       exit;
 
     // if we've gone through at least once, check if our new pointI is within a logical range of our last pointI
-    // if not, restart this iteration
+    // if not, set lastP to currentP and restart this iteration
     if iterated then
       begin
         if (distance(lastP, pointI) > distTol) then
