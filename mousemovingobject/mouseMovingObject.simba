@@ -72,9 +72,9 @@ begin
     if (ptTarget.X = -1) then
       exit;
 
-    // check if our new pointI is within a logical range of our last pointI
-    // if not, set lastP to currentP and restart this iteration
-    if (distance(ptLast, ptTarget) > distTol) then
+    // check if our new ptTarget is within a logical range of our last ptTarget
+    // if not, restart this iteration
+    if (distance(ptTarget, ptTarget) > distTol) then
       continue;
 
     dist := hypot(xs - ptTarget.x, ys - ptTarget.y);
