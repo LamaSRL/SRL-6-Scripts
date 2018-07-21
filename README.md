@@ -1,2 +1,2 @@
 # SRL-6
-Scripts for RS3, using the SRL-6 library.
+Scripts and other developments in SRL-6, typically for RS3.
