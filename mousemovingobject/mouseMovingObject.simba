@@ -5,10 +5,10 @@ program MouseMovingObject;
 // our record for which we will define out the moving objects we want to find
 type
   TFinderObj = record
-    ColorData: TColorData;
-    Size: integer;
+    ColorData: T2DColorData;
     OverText: TStringArray;
   end;
+
 
 // return the center point of an object given it's colorData
 function findObj(objData: TFinderObj; searchArea: TBox): TPoint;
@@ -24,10 +24,11 @@ begin
     if (t.getTime() > 2500) then
       exit(Point(-1, -1));
 
-    findColorsSpiralTolerance(x, y, TPA, objData.ColorData.color, searchArea, objData.ColorData.tolerance, objData.ColorData.settings);
+    objData.ColorData.gatherIn(TPA, searchArea);
   until length(TPA) >= 1;
 
   // around here is where we should implement some better filtering if our colorData isn't literally perfect (it never is)
+  // but I suppose the goal of this project isn't great object finding
 
   if length(TPA) >= 1 then
     p := middleTPA(TPA);
@@ -36,7 +37,8 @@ begin
 end;
 
 const
-  DIST_TOL = 3; // good enough for the standard walking speed of a humanoid NPC
+  DIST_TOL = 4; // good enough for the standard walking speed of a humanoid NPC all the way zoomed out
+                // however, we wouldn't want to be rotating the camera around or it will die
 
 // modified from Camel's modification of Flight and BenLand100's original _humanWindMouse.
 function mMoving(xs, ys, gravity, wind, minwait, maxwait, targetArea: Extended; objData: TFinderObj; searchArea: TBox; distTol: integer = DIST_TOL): boolean;
@@ -58,6 +60,8 @@ begin
   if ptTarget.X = -1 then
     exit;
 
+  ptLast := ptTarget;
+
   TDist := distance(round(xs), round(ys), ptTarget.X, ptTarget.Y);
   t := getSystemTime() + 10000;
   repeat
@@ -68,6 +72,8 @@ begin
     ptTarget := findObj(objData, searchArea);
     if (ptTarget.X = -1) then
       exit;
+
+    writeLn(intToStr(distance(ptLast, ptTarget)));
 
     // check if our new ptTarget is within a logical range of our last ptTarget
     // if not, restart this iteration to try finding another point that is within our distance tolerance
@@ -179,7 +185,7 @@ begin
 
   with banker do
   begin
-    ColorData := [2907463, 22, [2, [0.24, 0.34]]];
+    ColorData := [[3040333, 18, [2, [0.20, 0.34]]]];
     OverText := ['ank', 'merald', 'enedict'];
   end;
 
