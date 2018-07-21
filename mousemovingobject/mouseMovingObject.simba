@@ -64,9 +64,6 @@ begin
     if (getSystemTime() > t) then
       break;
 
-    // last point equals the last iteration target point
-    ptLast := ptTarget;
-
     // update our target's point
     ptTarget := findObj(objData, searchArea);
     if (ptTarget.X = -1) then
@@ -76,6 +73,9 @@ begin
     // if not, set lastP to currentP and restart this iteration
     if (distance(ptLast, ptTarget) > distTol) then
       continue;
+
+    // last point equals the last iteration target point
+    ptLast := ptTarget;
 
     dist := hypot(xs - ptTarget.x, ys - ptTarget.y);
 
