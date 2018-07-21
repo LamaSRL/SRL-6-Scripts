@@ -70,8 +70,9 @@ begin
       exit;
 
     // check if our new ptTarget is within a logical range of our last ptTarget
-    // if not, restart this iteration
-    if (distance(ptTarget, ptTarget) > distTol) then
+    // if not, restart this iteration to find a
+    // point that is within our distance tolerance
+    if (distance(ptLast, ptTarget) > distTol) then
       continue;
 
     // last point equals the last iteration target point
