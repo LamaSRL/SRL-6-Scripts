@@ -70,8 +70,9 @@ begin
       exit;
 
     // check if our new ptTarget is within a logical range of our last ptTarget
-    // if not, restart this iteration to find a
-    // point that is within our distance tolerance
+    // if not, restart this iteration to find a point that is within our distance tolerance
+    // I feel like this might need further development, it could very easily get stuck
+    // in a position where it will always fail this check until the function times out
     if (distance(ptLast, ptTarget) > distTol) then
       continue;
 
