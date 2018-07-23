@@ -36,12 +36,8 @@ begin
   result := p;
 end;
 
-const
-  DIST_TOL = 4; // good enough for the standard walking speed of a humanoid NPC all the way zoomed out
-                // however, we wouldn't want to be rotating the camera around or it will die
-
 // modified from Camel's modification of Flight and BenLand100's original _humanWindMouse.
-function mMoving(xs, ys, gravity, wind, minwait, maxwait, targetArea: Extended; objData: TFinderObj; searchArea: TBox; distTol: integer = DIST_TOL): boolean;
+function mMoving(xs, ys, gravity, wind, minwait, maxwait, targetArea: Extended; objData: TFinderObj; searchArea: TBox): boolean;
 var
   veloX, veloY, windX, windY, veloMag, dist, randomDist, D: extended;
   lastX, lastY, MSP, W, TDist: integer;
@@ -72,15 +68,6 @@ begin
     ptTarget := findObj(objData, searchArea);
     if (ptTarget.X = -1) then
       exit;
-
-    writeLn(intToStr(distance(ptLast, ptTarget)));
-
-    // check if our new ptTarget is within a logical range of our last ptTarget
-    // if not, restart this iteration to try finding another point that is within our distance tolerance
-    // I feel like this might need further development, it could very easily get stuck
-    // in a position where it will always fail this check until the function times out
-    if (distance(ptLast, ptTarget) > distTol) then
-      continue;
 
     // last point equals the last iteration target point
     ptLast := ptTarget;
@@ -153,7 +140,7 @@ begin
 end;
 
 // take a TFinderObject as defined, a search area TBox, what button to press on arrival, and a distance tolerance (depending on the speed of our moving target)
-function mMovingObject(objData: TFinderObj; searchArea: TBox; button: integer; distTolerance: integer = DIST_TOL): boolean;
+function mMovingObject(objData: TFinderObj; searchArea: TBox; button: integer): boolean;
 var
   randSpeed: extended;
   x, y, ms: integer;
@@ -166,7 +153,7 @@ begin
   getMousePos(x,y);
 
   // if we'ved arrived at our target, press our button and return true
-  if mMoving(x, y, MOUSE_HUMAN, 5, 10.0/randSpeed, 15.0/randSpeed, 10.0*randSpeed, objData, searchArea, distTolerance) then
+  if mMoving(x, y, MOUSE_HUMAN, 5, 10.0/randSpeed, 15.0/randSpeed, 10.0*randSpeed, objData, searchArea) then
     begin
       fastClick(button);
       exit(true);

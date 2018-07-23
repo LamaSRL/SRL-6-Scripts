@@ -193,10 +193,9 @@ begin
   t.reset(); t.start();
   repeat
     if (t.getTime() > 5000) then exit();
-
+    wait(250);
                             // greenish clothing hues
     findColorsSpiralTolerance(player.X, player.Y, TPA, 2907463, mainScreen.getBounds(), 22, colorSetting(2, 0.24, 0.34));
-    wait(250);
   until length(TPA) >= 1;
 
   ATPA := TPA.cluster(10);
@@ -505,9 +504,9 @@ begin
     end;
 
   mouseBox(mainScreen.getBounds());
-  //minimap.clickCompass();
-  //mainScreen.setAngle(MS_ANGLE_HIGH);
-  //mainScreen.setZoom(true, 30);
+  minimap.clickCompass();
+  mainScreen.setAngle(MS_ANGLE_HIGH);
+  mainScreen.setZoom(true, 30);
   CamReset := true;
 
   findNormalRandoms();
@@ -516,7 +515,7 @@ end;
 procedure setup;
 begin
   clearDebug();
-  disableSRLDebug := true;
+  disableSRLDebug := false;
   smartEnableDrawing := true;
   smartShowConsole := false;
   setupSRL();
@@ -583,7 +582,9 @@ begin
       if (_waitBankOrPinScreen(6000)) then
         begin
           if (pinScreen.isOpen()) then
+          begin
             pinscreen.enter(players[currentPlayer].bankPin);
+          end;
           wait(randomRange(350, 600));
           result := withdrawPreset();
         end;
@@ -650,10 +651,6 @@ begin
 end;
 
 begin
-  writeLn(getPage('https://raw.githubusercontent.com/SRL-Lama/SRL-6-Scripts/master/roguescooker/version.txt'));
-  wait(5000);
-  getUpdate();
-
   setup();
   mainLoop();
   players[currentPlayer].logout();
