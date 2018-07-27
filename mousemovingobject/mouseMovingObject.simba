@@ -2,42 +2,13 @@ program MouseMovingObject;
 {$DEFINE SMART}
 {$I SRL-6/SRL.simba}
 
-// our record for which we will define out the moving objects we want to find
 type
   TFinderObj = record
-    ColorData: T2DColorData;
+    ColorData: TColorData;
     OverText: TStringArray;
   end;
 
-
-// return the center point of an object given it's colorData
-function findObj(objData: TFinderObj; searchArea: TBox): TPoint;
-var
-  ATPA: T2DPointArray;
-  TPA: TPointARray;
-  x, y: integer;
-  t: TTimeMarker;
-  p: TPoint;
-begin
-  t.reset(); t.start();
-  repeat
-    if (t.getTime() > 2500) then
-      exit(Point(-1, -1));
-
-    objData.ColorData.gatherIn(TPA, searchArea);
-  until length(TPA) >= 1;
-
-  // around here is where we should implement some better filtering if our colorData isn't literally perfect (it never is)
-  // but I suppose the goal of this project isn't great object finding
-
-  if length(TPA) >= 1 then
-    p := middleTPA(TPA);
-
-  result := p;
-end;
-
-// modified from Camel's modification of Flight and BenLand100's original _humanWindMouse.
-function mMoving(xs, ys, gravity, wind, minwait, maxwait, targetArea: Extended; objData: TFinderObj; searchArea: TBox): boolean;
+function mMoving(xs, ys, gravity, wind, minwait, maxwait, targetArea: Extended; obj: TFinderObj): boolean;
 var
   veloX, veloY, windX, windY, veloMag, dist, randomDist, D: extended;
   lastX, lastY, MSP, W, TDist: integer;
@@ -51,8 +22,8 @@ begin
   sqrt3:= sqrt(3);
   sqrt5:= sqrt(5);
 
-  // if we can't see our target, return false
-  ptTarget := findObj(objData, searchArea);
+  ptTarget := obj.Find();
+
   if ptTarget.X = -1 then
     exit;
 
@@ -64,12 +35,11 @@ begin
     if (getSystemTime() > t) then
       break;
 
-    // update our target's point
-    ptTarget := findObj(objData, searchArea);
+    ptTarget := obj.Find();
+
     if (ptTarget.X = -1) then
       exit;
 
-    // last point equals the last iteration target point
     ptLast := ptTarget;
 
     dist := hypot(xs - ptTarget.x, ys - ptTarget.y);
@@ -124,23 +94,21 @@ begin
     if (lastX <> round(xs)) or (lastY <> round(ys)) then
       moveMouse(round(xs), round(ys));
 
-    W := (random((round(100/MSP)))*6);
-    if (W < 5) then
-      W := 5;
+    W := (random((round(100/MSP)))*4);
+    if (W < 4) then
+      W := 4;
     W := round(W*0.9);
 
     wait(W);
   until(hypot(xs - ptTarget.X, ys - ptTarget.Y) < 3);
 
-  // if we have arrived at our destination (more or less), return true
   if (hypot(xs - ptTarget.X, ys - ptTarget.Y) < 3) then
     exit(true);
 
   mouseSpeed := MSP;
 end;
 
-// take a TFinderObject as defined, a search area TBox, what button to press on arrival, and a distance tolerance (depending on the speed of our moving target)
-function mMovingObject(objData: TFinderObj; searchArea: TBox; button: integer): boolean;
+function mouseObject(obj: TFinderObj; button: integer): boolean;
 var
   randSpeed: extended;
   x, y, ms: integer;
@@ -149,11 +117,10 @@ begin
     exit;
 
   ms := mouseSpeed;
-  randSpeed := (random(mouseSpeed) / 2.0 + mouseSpeed) / 10.0;
-  getMousePos(x,y);
+  randSpeed := ((random(mouseSpeed)) / 1.3 + mouseSpeed) / 6.25;
+  getMousePos(x, y);
 
-  // if we'ved arrived at our target, press our button and return true
-  if mMoving(x, y, MOUSE_HUMAN, 5, 10.0/randSpeed, 15.0/randSpeed, 10.0*randSpeed, objData, searchArea) then
+  if mMoving(x, y, MOUSE_HUMAN, 5, 12.0/randSpeed, 15.0/randSpeed, 8.5*randSpeed, obj) then
     begin
       fastClick(button);
       exit(true);
@@ -162,7 +129,61 @@ begin
   mouseSpeed := ms;
 end;
 
-// testing, finding the banker Emerald Benedict within the Rogues' Den
+procedure TFinderObj.Init;
+begin
+  Self.ColorData := [2907463, 22, [2, [0.24, 0.34]]];
+  Self.OverText  := ['ank', 'merald', 'enedict'];
+end;
+
+function TFinderObj.Visible: boolean;
+var
+  TPA: TPointArray;
+  ATPA: T2DPointArray;
+begin
+  Self.ColorData.gatherIn(TPA, mainScreen.getBounds());
+
+  if (length(TPA) >= 1) then
+    begin
+      ATPA := TPA.split(10);
+      ATPA.filterBetween(0, 7);
+
+      if (length(ATPA) >= 1) then
+        exit(true);
+    end;
+end;
+
+function TFinderObj.Find: TPoint;
+var
+  TPA: TPointArray;
+  ATPA: T2DPointArray;
+  i: integer;
+begin
+  repeat
+    Self.ColorData.gatherIn(TPA, mainScreen.getBounds());
+
+    if (length(TPA) >= 1) then
+      begin
+        ATPA := TPA.split(10);
+        ATPA.filterBetween(0, 7);
+      end;
+  until length(ATPA) >= 1;
+
+  ATPA.sortFromMidPoint(mainScreen.playerPoint);
+
+  result := middleTPA(ATPA[0]);
+end;
+
+function TFinderObj.Click: boolean;
+begin
+  if not Self.Visible then
+    exit; // do searching logic somewhere, for example
+
+  // mouse the object, then click
+  if (mouseObject(Self, MOUSE_MOVE)) then
+    if (isMouseOverText(Self.OverText)) then
+      exit(didClick(true));
+end;
+
 var
   banker: TFinderObj;
 begin
@@ -170,13 +191,6 @@ begin
   smartEnableDrawing := true;
   smartShowConsole := false;
 
-  with banker do
-  begin
-    ColorData := [[3040333, 18, [2, [0.20, 0.34]]]];
-    OverText := ['ank', 'merald', 'enedict'];
-  end;
-
-  if (mMovingObject(banker, mainScreen.getBounds(), MOUSE_MOVE)) then
-    if (isMouseOverText(banker.OverText, 1000)) then
-      fastClick(MOUSE_RIGHT);
+  banker.Init();
+  banker.Click();
 end.
