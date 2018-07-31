@@ -8,6 +8,50 @@ type
     OverText: TStringArray;
   end;
 
+procedure TFinderObj.Init;
+begin
+  Self.ColorData := [2907463, 22, [2, [0.24, 0.34]]];
+  Self.OverText  := ['ank', 'merald', 'enedict'];
+end;
+
+function TFinderObj.Visible: boolean;
+var
+  TPA: TPointArray;
+  ATPA: T2DPointArray;
+begin
+  Self.ColorData.gatherIn(TPA, mainScreen.getBounds());
+
+  if (length(TPA) >= 1) then
+    begin
+      ATPA := TPA.split(10);
+      ATPA.filterBetween(0, 7);
+
+      if (length(ATPA) >= 1) then
+        exit(true);
+    end;
+end;
+
+function TFinderObj.Find: TPoint;
+var
+  TPA: TPointArray;
+  ATPA: T2DPointArray;
+  i: integer;
+begin
+  repeat
+    Self.ColorData.gatherIn(TPA, mainScreen.getBounds());
+
+    if (length(TPA) >= 1) then
+      begin
+        ATPA := TPA.split(10);
+        ATPA.filterBetween(0, 7);
+      end;
+  until length(ATPA) >= 1;
+
+  ATPA.sortFromMidPoint(mainScreen.playerPoint);
+
+  result := middleTPA(ATPA[0]);
+end;
+
 function mMoving(xs, ys, gravity, wind, minwait, maxwait, targetArea: Extended; obj: TFinderObj): boolean;
 var
   veloX, veloY, windX, windY, veloMag, dist, randomDist, D: extended;
@@ -23,16 +67,12 @@ begin
   sqrt5:= sqrt(5);
 
   ptTarget := obj.Find();
-
-  if ptTarget.X = -1 then
-    exit;
-
   ptLast := ptTarget;
 
   TDist := distance(round(xs), round(ys), ptTarget.X, ptTarget.Y);
   t := getSystemTime() + 10000;
-  repeat
-    if (getSystemTime() > t) then
+  repeat                 // might leave viewfinder
+    if (getSystemTime() > t or (not obj.Visible)) then
       break;
 
     ptTarget := obj.Find();
@@ -127,50 +167,6 @@ begin
     end;
 
   mouseSpeed := ms;
-end;
-
-procedure TFinderObj.Init;
-begin
-  Self.ColorData := [2907463, 22, [2, [0.24, 0.34]]];
-  Self.OverText  := ['ank', 'merald', 'enedict'];
-end;
-
-function TFinderObj.Visible: boolean;
-var
-  TPA: TPointArray;
-  ATPA: T2DPointArray;
-begin
-  Self.ColorData.gatherIn(TPA, mainScreen.getBounds());
-
-  if (length(TPA) >= 1) then
-    begin
-      ATPA := TPA.split(10);
-      ATPA.filterBetween(0, 7);
-
-      if (length(ATPA) >= 1) then
-        exit(true);
-    end;
-end;
-
-function TFinderObj.Find: TPoint;
-var
-  TPA: TPointArray;
-  ATPA: T2DPointArray;
-  i: integer;
-begin
-  repeat
-    Self.ColorData.gatherIn(TPA, mainScreen.getBounds());
-
-    if (length(TPA) >= 1) then
-      begin
-        ATPA := TPA.split(10);
-        ATPA.filterBetween(0, 7);
-      end;
-  until length(ATPA) >= 1;
-
-  ATPA.sortFromMidPoint(mainScreen.playerPoint);
-
-  result := middleTPA(ATPA[0]);
 end;
 
 function TFinderObj.Click: boolean;
